@@ -50,14 +50,25 @@ def main():
     src_path = os.path.join(SCRIPT_DIR, PYTHON_NAME_VERSION)
     rmtree(src_path)
     run(["tar", "-C", SCRIPT_DIR, "-xf", archive_path])
-    shutil.copyfile(
-        os.path.join(SCRIPT_DIR, "Setup.local"),
-        os.path.join(src_path, "Modules", "Setup.local"))
+    setup_dst = os.path.join(src_path, "Modules", "Setup.local")
+    shutil.copyfile(os.path.join(SCRIPT_DIR, "Setup.local"), setup_dst)
+
+    extra_config_args = []
+
+    include_ctypes = True
+    if include_ctypes:
+        extra_config_args.append("--with-system-ffi")
+        extra_config_args.extend(["--with-libs= -lffi "])
+        with open(setup_dst, "a") as dst:
+            ctypes_setup = os.path.join(SCRIPT_DIR, "Setup.ctypes")
+            with open(ctypes_setup, "r") as src:
+                dst.write("\n" + "# copied from " + ctypes_setup + "\n" + src.read() + "\n")
+
     run(["./configure",
          "--prefix=" + common.OUT_DIR,
          "LDFLAGS=-static",
          "LINKFORSHARED= ",
-    ], cwd=src_path)
+    ] + extra_config_args, cwd=src_path)
     rmtree(common.OUT_DIR)
     run(["make", "install"] + MAKE_PARALLEL_ARGS, cwd=src_path)
 
