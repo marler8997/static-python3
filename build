@@ -19,9 +19,11 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 def run(*args, **kwargs):
+    if not 'check' in kwargs:
+        kwargs['check'] = True
     eprint("[RUN] " + subprocess.list2cmdline(*args))
     sys.stdout.flush()
-    return subprocess.check_call(*args, **kwargs)
+    return subprocess.run(*args, **kwargs)
 
 def download(url, filename):
     makedirs(os.path.dirname(filename))
@@ -41,6 +43,18 @@ def rmtree(path):
     if os.path.exists(path):
         shutil.rmtree(path)
 
+def readFile(file_path):
+    with open(file_path, "r") as f:
+        return f.read()
+
+def appendFile(file_path, content):
+    with open(file_path, "a") as f:
+        f.write(content)
+
+def appendSetupWithFile(setup_dst, from_file):
+    appendFile(setup_dst, "\n" + "# copied from " + from_file + "\n" + readFile(from_file) + "\n")
+
+
 def main():
     archive_path = os.path.join(DOWNLOADS_DIR, PYTHON_ARCHIVE_BASENAME)
     if not os.path.exists(archive_path):
@@ -56,13 +70,36 @@ def main():
     extra_config_args = []
 
     include_ctypes = True
+    include_ssl = True
+
+    extra_libs = set()
+
     if include_ctypes:
         extra_config_args.append("--with-system-ffi")
-        extra_config_args.extend(["--with-libs= -lffi "])
-        with open(setup_dst, "a") as dst:
-            ctypes_setup = os.path.join(SCRIPT_DIR, "Setup.ctypes")
-            with open(ctypes_setup, "r") as src:
-                dst.write("\n" + "# copied from " + ctypes_setup + "\n" + src.read() + "\n")
+        extra_libs.add("-lffi")
+        appendSetupWithFile(setup_dst, os.path.join(SCRIPT_DIR, "Setup.ctypes"))
+    if include_ssl:
+        result = run(["pkg-config", "--static", "--libs", "openssl"], capture_output=True)
+        libs = result.stdout.decode('utf8').split()
+        print("OpenSSL static libraries: {}".format(libs))
+        for lib in libs:
+            extra_libs.add(lib)
+
+        result = run(["openssl", "version", "-d"], capture_output=True)
+        prefix = b"OPENSSLDIR: \""
+        assert(result.stdout.startswith(prefix))
+        openssl_dir = result.stdout[len(prefix):]
+        end = openssl_dir.find(b"\"")
+        assert(end != -1)
+        openssl_dir = openssl_dir[:end].decode('utf8')
+        appendFile(setup_dst, "# generated from build script:\nOPENSSL={}\n".format(openssl_dir))
+        appendSetupWithFile(setup_dst, os.path.join(SCRIPT_DIR, "Setup.ssl"))
+
+    if len(extra_libs) > 0:
+        libs = ""
+        for lib in extra_libs:
+            libs += " " + lib
+        extra_config_args.append("--with-libs=" + libs)
 
     run(["./configure",
          "--prefix=" + common.OUT_DIR,

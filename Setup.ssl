@@ -1,0 +1,7 @@
+ _ssl _ssl.c \
+     -I$(OPENSSL)/include -L$(OPENSSL)/lib \
+     -l:libssl.a -Wl,--exclude-libs,libssl.a \
+     -l:libcrypto.a -Wl,--exclude-libs,libcrypto.a
+_hashlib _hashopenssl.c \
+     -I$(OPENSSL)/include -L$(OPENSSL)/lib \
+     -l:libcrypto.a -Wl,--exclude-libs,libcrypto.a
