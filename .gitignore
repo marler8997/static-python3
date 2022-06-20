@@ -1,0 +1,5 @@
+/downloads/
+/out/
+/Python-*/
+*.tar*
+__pycache__/

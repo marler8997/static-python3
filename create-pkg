@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+import os
+import sys
+import subprocess
+
+import common
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def run(*args, **kwargs):
+    print("[RUN] " + subprocess.list2cmdline(*args))
+    sys.stdout.flush()
+    return subprocess.check_call(*args, **kwargs)
+
+def main():
+    tar_path = os.path.join(SCRIPT_DIR, "python-" + common.PYTHON_VERSION + ".tar")
+    run(["tar", "-C", common.OUT_DIR, "-cvf", tar_path, "."])
+    print("create-pkg: compressing...(this can take a while)")
+    run(["xz", "-f", tar_path])
+
+main()

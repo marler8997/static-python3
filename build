@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+import os
+import sys
+import shutil
+import subprocess
+import multiprocessing
+
+import common
+
+PYTHON_NAME_VERSION = "Python-" + common.PYTHON_VERSION
+PYTHON_ARCHIVE_BASENAME = PYTHON_NAME_VERSION + ".tar.xz"
+PYTHON_SRC_URL = "https://www.python.org/ftp/python/{}/{}".format(common.PYTHON_VERSION, PYTHON_ARCHIVE_BASENAME)
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DOWNLOADS_DIR = os.path.join(SCRIPT_DIR, "downloads")
+MAKE_PARALLEL_ARGS = ["-j" + str(multiprocessing.cpu_count())]
+
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
+
+def run(*args, **kwargs):
+    eprint("[RUN] " + subprocess.list2cmdline(*args))
+    sys.stdout.flush()
+    return subprocess.check_call(*args, **kwargs)
+
+def download(url, filename):
+    makedirs(os.path.dirname(filename))
+    tmp_filename = filename + ".downloading"
+    if os.path.exists(tmp_filename):
+        os.remove(tmp_filename)
+    if shutil.which("wget"):
+        run(["wget", url, "--output-document", tmp_filename])
+    run(["curl", url, "--output", tmp_filename])
+    os.rename(tmp_filename, filename)
+
+def makedirs(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+def rmtree(path):
+    if os.path.exists(path):
+        shutil.rmtree(path)
+
+def main():
+    archive_path = os.path.join(DOWNLOADS_DIR, PYTHON_ARCHIVE_BASENAME)
+    if not os.path.exists(archive_path):
+        makedirs(DOWNLOADS_DIR)
+        download(PYTHON_SRC_URL, archive_path)
+
+    src_path = os.path.join(SCRIPT_DIR, PYTHON_NAME_VERSION)
+    rmtree(src_path)
+    run(["tar", "-C", SCRIPT_DIR, "-xf", archive_path])
+    shutil.copyfile(
+        os.path.join(SCRIPT_DIR, "Setup.local"),
+        os.path.join(src_path, "Modules", "Setup.local"))
+    run(["./configure",
+         "--prefix=" + common.OUT_DIR,
+         "LDFLAGS=-static",
+         "LINKFORSHARED= ",
+    ], cwd=src_path)
+    rmtree(common.OUT_DIR)
+    run(["make", "install"] + MAKE_PARALLEL_ARGS, cwd=src_path)
+
+main()
